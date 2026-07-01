@@ -5,6 +5,8 @@ import dotenv from "dotenv";
 import productRoute from "./routes/product.route.js";
 import supplierRoute from "./routes/supplier.route.js";
 import supplyRoute from "./routes/supply.route.js";
+import authRoute from "./routes/auth.route.js";
+import cartRoute from "./routes/cart.route.js";
 
 dotenv.config();
 
@@ -15,6 +17,8 @@ app.use(express.json());
 app.use("/api/products", productRoute);
 app.use("/api/suppliers", supplierRoute);
 app.use("/api/supplies", supplyRoute);
+app.use("/api/Auth", authRoute);
+app.use("/api/cart", cartRoute);
 
 app.get("/", (req, res) => {
   res.send("Marketplace VAM Backend is running");
