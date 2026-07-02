@@ -150,3 +150,247 @@ export const getSupplyDetail = async (req, res) => {
     });
   }
 };
+const generateSupplyCode = () => {
+  const random = Math.floor(Math.random() * 100000000)
+    .toString()
+    .padStart(8, "0");
+
+  return `SUP${random}`;
+};
+
+const generateUniqueSupplyCode = async () => {
+  let supplyCode;
+  let existingSupply;
+
+  do {
+    supplyCode = generateSupplyCode();
+    existingSupply = await Supply.findOne({ supplyCode });
+  } while (existingSupply);
+
+  return supplyCode;
+};
+
+const canManageSupply = (user, supply) => {
+  if (user.role === "admin") {
+    return true;
+  }
+
+  return String(supply.farmerId) === String(user._id);
+};
+
+export const createSupply = async (req, res) => {
+  try {
+    if (!["admin", "farmer", "business"].includes(req.user.role)) {
+      return res.status(403).json({
+        message: "You do not have permission to create supply",
+      });
+    }
+
+    const {
+      seafoodType,
+      species,
+      category,
+      size,
+      quantity,
+      unit,
+      harvestDate,
+      proposedPrice,
+      price,
+      priceText,
+      location,
+      province,
+      origin,
+      description,
+      image,
+      images,
+      certifications,
+      status,
+    } = req.body;
+
+    if (!seafoodType || !quantity || !proposedPrice) {
+      return res.status(400).json({
+        message: "Seafood type, quantity and proposed price are required",
+      });
+    }
+
+    const supplyCode = await generateUniqueSupplyCode();
+
+    const newSupply = await Supply.create({
+      supplyCode,
+
+      farmerId: req.user._id,
+
+      seafoodType,
+      species: species || seafoodType,
+      category,
+      size,
+
+      quantity,
+      unit: unit || "kg",
+
+      harvestDate,
+
+      proposedPrice,
+      price: price || proposedPrice,
+      priceText,
+
+      location,
+      province,
+      origin,
+
+      description,
+
+      image,
+      images: images || (image ? [image] : []),
+
+      certifications: certifications || [],
+
+      status: status || "approved",
+
+      isActive: true,
+      isDeleted: false,
+    });
+
+    res.status(201).json({
+      message: "Create supply successfully",
+      data: newSupply,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const getMySupplies = async (req, res) => {
+  try {
+    const supplies = await Supply.find({
+      farmerId: req.user._id,
+      isDeleted: { $ne: true },
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      message: "Get my supplies successfully",
+      data: supplies,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const updateSupply = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = {
+      $or: [{ id }, { legacyId: id }, { supplyCode: id }],
+      isDeleted: { $ne: true },
+    };
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query.$or.push({ _id: id });
+    }
+
+    const supply = await Supply.findOne(query);
+
+    if (!supply) {
+      return res.status(404).json({
+        message: "Supply not found",
+      });
+    }
+
+    if (!canManageSupply(req.user, supply)) {
+      return res.status(403).json({
+        message: "You do not have permission to update this supply",
+      });
+    }
+
+    const allowedFields = [
+      "seafoodType",
+      "species",
+      "category",
+      "size",
+      "quantity",
+      "unit",
+      "harvestDate",
+      "proposedPrice",
+      "price",
+      "priceText",
+      "location",
+      "province",
+      "origin",
+      "description",
+      "image",
+      "images",
+      "certifications",
+      "status",
+      "isActive",
+    ];
+
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        supply[field] = req.body[field];
+      }
+    });
+
+    await supply.save();
+
+    res.status(200).json({
+      message: "Update supply successfully",
+      data: supply,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteSupply = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = {
+      $or: [{ id }, { legacyId: id }, { supplyCode: id }],
+      isDeleted: { $ne: true },
+    };
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query.$or.push({ _id: id });
+    }
+
+    const supply = await Supply.findOne(query);
+
+    if (!supply) {
+      return res.status(404).json({
+        message: "Supply not found",
+      });
+    }
+
+    if (!canManageSupply(req.user, supply)) {
+      return res.status(403).json({
+        message: "You do not have permission to delete this supply",
+      });
+    }
+
+    supply.isDeleted = true;
+    supply.isActive = false;
+
+    await supply.save();
+
+    res.status(200).json({
+      message: "Delete supply successfully",
+      data: supply,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};

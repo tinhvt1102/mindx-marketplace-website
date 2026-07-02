@@ -131,3 +131,237 @@ export const getProductDetail = async (req, res) => {
     });
   }
 };
+const generateProductCode = () => {
+  const random = Math.floor(Math.random() * 100000000)
+    .toString()
+    .padStart(8, "0");
+
+  return `PRD${random}`;
+};
+
+const generateUniqueProductCode = async () => {
+  let productCode;
+  let existingProduct;
+
+  do {
+    productCode = generateProductCode();
+    existingProduct = await Product.findOne({ productCode });
+  } while (existingProduct);
+
+  return productCode;
+};
+
+const canManageProduct = (user, product) => {
+  if (user.role === "admin") {
+    return true;
+  }
+
+  return String(product.sellerId) === String(user._id);
+};
+
+export const createProduct = async (req, res) => {
+  try {
+    if (!["admin", "farmer", "business"].includes(req.user.role)) {
+      return res.status(403).json({
+        message: "You do not have permission to create product",
+      });
+    }
+
+    const {
+      name,
+      category,
+      seafoodType,
+      description,
+      image,
+      images,
+      price,
+      originalPrice,
+      unit,
+      stock,
+      origin,
+      size,
+      harvestDate,
+      productType,
+    } = req.body;
+
+    if (!name || !category || !price) {
+      return res.status(400).json({
+        message: "Name, category and price are required",
+      });
+    }
+
+    const productCode = await generateUniqueProductCode();
+
+    const newProduct = await Product.create({
+      productCode,
+      sellerId: req.user._id,
+
+      name,
+      category,
+      seafoodType,
+      description,
+
+      image,
+      images: images || (image ? [image] : []),
+
+      price,
+      originalPrice,
+      unit: unit || "kg",
+      stock: stock || 0,
+
+      origin,
+      size,
+      harvestDate,
+
+      rating: 0,
+      reviews: 0,
+      totalReviews: 0,
+      sold: 0,
+
+      productType: productType || "retail",
+      status: "approved",
+
+      isActive: true,
+      isDeleted: false,
+    });
+
+    res.status(201).json({
+      message: "Create product successfully",
+      data: newProduct,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const getMyProducts = async (req, res) => {
+  try {
+    const products = await Product.find({
+      sellerId: req.user._id,
+      isDeleted: { $ne: true },
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      message: "Get my products successfully",
+      data: products,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = {
+      $or: [{ id }, { legacyId: id }, { productCode: id }],
+      isDeleted: { $ne: true },
+    };
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query.$or.push({ _id: id });
+    }
+
+    const product = await Product.findOne(query);
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    if (!canManageProduct(req.user, product)) {
+      return res.status(403).json({
+        message: "You do not have permission to update this product",
+      });
+    }
+
+    const allowedFields = [
+      "name",
+      "category",
+      "seafoodType",
+      "description",
+      "image",
+      "images",
+      "price",
+      "originalPrice",
+      "unit",
+      "stock",
+      "origin",
+      "size",
+      "harvestDate",
+      "productType",
+      "status",
+      "isActive",
+    ];
+
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        product[field] = req.body[field];
+      }
+    });
+
+    await product.save();
+
+    res.status(200).json({
+      message: "Update product successfully",
+      data: product,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = {
+      $or: [{ id }, { legacyId: id }, { productCode: id }],
+      isDeleted: { $ne: true },
+    };
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query.$or.push({ _id: id });
+    }
+
+    const product = await Product.findOne(query);
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    if (!canManageProduct(req.user, product)) {
+      return res.status(403).json({
+        message: "You do not have permission to delete this product",
+      });
+    }
+
+    product.isDeleted = true;
+    product.isActive = false;
+
+    await product.save();
+
+    res.status(200).json({
+      message: "Delete product successfully",
+      data: product,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
