@@ -1,299 +1,212 @@
-import { useState } from 'react';
-import { Package, MessageSquare, FileText, History, Bell, TrendingUp, DollarSign } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Package, FileText, Bell, TrendingUp, DollarSign, RefreshCw, ShoppingCart } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { toast } from 'react-hot-toast';
+import { apiClient } from '../../api/apiClient';
+import { ENDPOINTS } from '../../api/endpoints';
+
+const formatCurrency = (value) => `${Number(value || 0).toLocaleString('vi-VN')}đ`;
+
+const getCurrentUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('currentUser') || '{}');
+  } catch {
+    return {};
+  }
+};
 
 export function DashboardPage() {
   const [activeTab, setActiveTab] = useState('orders');
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const salesData = [
-    { month: 'T1', sales: 120 },
-    { month: 'T2', sales: 150 },
-    { month: 'T3', sales: 180 },
-    { month: 'T4', sales: 160 },
-    { month: 'T5', sales: 200 },
-    { month: 'T6', sales: 220 },
-  ];
-
-  const ordersData = [
-    { month: 'T1', sales: 120 },
-    { month: 'T2', sales: 150 },
-    { month: 'T3', sales: 180 },
-    { month: 'T4', sales: 160 },
-    { month: 'T5', sales: 200 },
-    { month: 'T6', sales: 220 },
-  ];
-
-  const orders = [
-    {
-      id: 'DH001',
-      date: '05/03/2026',
-      products: 'Tôm sú size 20-25',
-      quantity: '5 kg',
-      total: '2.250.000đ',
-      status: 'Đã giao'
-    },
-    {
-      id: 'DH002',
-      date: '04/03/2026',
-      products: 'Cá Tra phi lê',
-      quantity: '10 kg',
-      total: '850.000đ',
-      status: 'Đang giao'
-    },
-    {
-      id: 'DH003',
-      date: '03/03/2026',
-      products: 'Cua biển',
-      quantity: '3 kg',
-      total: '960.000đ',
-      status: 'Đã giao'
+  const loadDashboard = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Bạn cần đăng nhập để xem dashboard');
+      return;
     }
-  ];
 
-  const negotiations = [
-    {
-      id: 'TL001',
-      supplier: 'Hộ nuôi Phát Đạt',
-      product: 'Tôm sú size 15-20',
-      quantity: '20 tấn',
-      status: 'Đang thương lượng'
-    },
-    {
-      id: 'TL002',
-      supplier: 'Hộ nuôi Miền Tây',
-      product: 'Cá Tra',
-      quantity: '50 tấn',
-      status: 'Chờ báo giá'
-    }
-  ];
+    const user = getCurrentUser();
+    const isAdmin = user?.role === 'admin';
 
-  const contracts = [
-    {
-      id: 'HD001',
-      supplier: 'Hộ nuôi Phát Đạt',
-      product: 'Tôm sú',
-      startDate: '01/03/2026',
-      endDate: '01/06/2026',
-      status: 'Đang hiệu lực'
+    try {
+      setLoading(true);
+      const response = await apiClient.get(isAdmin ? ENDPOINTS.DASHBOARD.ADMIN : ENDPOINTS.DASHBOARD.SELLER);
+      setDashboard(response.data || {});
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || 'Không tải được dashboard');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  const recentOrders = dashboard?.recentOrders || [];
+  const bestSellingProducts = dashboard?.bestSellingProducts || [];
+
+  const chartData = [
+    { month: 'T1', value: Number(dashboard?.totalProducts || 0) },
+    { month: 'T2', value: Number(dashboard?.totalSupplies || 0) },
+    { month: 'T3', value: Number(dashboard?.totalOrders || 0) },
+    { month: 'T4', value: Number(dashboard?.newOrders || 0) },
+    { month: 'T5', value: Number(dashboard?.completedOrders || 0) },
+    { month: 'T6', value: Number(dashboard?.pendingSupplies || 0) },
   ];
 
   const tabs = [
-    { id: 'orders', label: 'Đơn đã đặt', icon: Package },
-    { id: 'negotiations', label: 'Đơn đang thương lượng', icon: MessageSquare },
-    { id: 'contracts', label: 'Hợp đồng', icon: FileText },
-    { id: 'history', label: 'Lịch sử giao dịch', icon: History },
+    { id: 'orders', label: 'Đơn hàng gần đây', icon: Package },
+    { id: 'products', label: 'Sản phẩm nổi bật', icon: FileText },
+    { id: 'analytics', label: 'Thống kê', icon: TrendingUp },
     { id: 'notifications', label: 'Thông báo', icon: Bell },
   ];
 
+  const statCards = [
+    { label: 'Tổng sản phẩm', value: dashboard?.totalProducts || 0, icon: Package, color: '#00BCD4' },
+    { label: 'Tổng sản lượng', value: dashboard?.totalSupplies || 0, icon: FileText, color: '#0A2A4D' },
+    { label: 'Tổng đơn hàng', value: dashboard?.totalOrders || 0, icon: ShoppingCart, color: '#F59E0B' },
+    { label: 'Doanh thu hoàn tất', value: formatCurrency(dashboard?.totalRevenue), icon: DollarSign, color: '#10B981' },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="mb-8" style={{ color: '#0A2647' }}>Dashboard Quản lý</h1>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">Tổng đơn hàng</span>
-              <Package className="w-5 h-5" style={{ color: '#00BCD4' }} />
-            </div>
-            <p className="text-2xl font-bold" style={{ color: '#0A2647' }}>127</p>
-            <p className="text-xs text-green-600 mt-1">+12% so với tháng trước</p>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="mb-8 flex justify-between items-start gap-4">
+          <div>
+            <h1 className="text-3xl mb-2" style={{ color: '#0A2A4D', fontWeight: 700 }}>
+              Dashboard
+            </h1>
+            <p className="text-gray-600">Số liệu lấy trực tiếp từ MongoDB thông qua API dashboard.</p>
           </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">Doanh thu</span>
-              <DollarSign className="w-5 h-5" style={{ color: '#00BCD4' }} />
-            </div>
-            <p className="text-2xl font-bold" style={{ color: '#0A2647' }}>245M</p>
-            <p className="text-xs text-green-600 mt-1">+18% so với tháng trước</p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">Đang thương lượng</span>
-              <MessageSquare className="w-5 h-5" style={{ color: '#00BCD4' }} />
-            </div>
-            <p className="text-2xl font-bold" style={{ color: '#0A2647' }}>8</p>
-            <p className="text-xs text-gray-500 mt-1">Cần phản hồi</p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">Hợp đồng</span>
-              <FileText className="w-5 h-5" style={{ color: '#00BCD4' }} />
-            </div>
-            <p className="text-2xl font-bold" style={{ color: '#0A2647' }}>12</p>
-            <p className="text-xs text-gray-500 mt-1">Đang hiệu lực</p>
-          </div>
+          <button
+            onClick={loadDashboard}
+            className="px-4 py-2 bg-white border rounded-md flex items-center gap-2"
+            disabled={loading}
+          >
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            Tải lại
+          </button>
         </div>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="mb-4" style={{ color: '#0A2647' }}>Doanh thu theo tháng</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={salesData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="sales" stroke="#00BCD4" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="mb-4" style={{ color: '#0A2647' }}>Đơn hàng theo tháng</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={ordersData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="sales" fill="#0A2647" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-sm">
-          <div className="border-b overflow-x-auto" style={{ borderColor: '#e5e7eb' }}>
-            <div className="flex min-w-max">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`px-6 py-4 flex items-center gap-2 whitespace-nowrap ${
-                      activeTab === tab.id
-                        ? 'border-b-2'
-                        : 'text-gray-500'
-                    }`}
-                    style={{
-                      borderColor: activeTab === tab.id ? '#00BCD4' : 'transparent',
-                      color: activeTab === tab.id ? '#0A2647' : undefined
-                    }}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="p-6">
-            {activeTab === 'orders' && (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b" style={{ borderColor: '#e5e7eb' }}>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Mã đơn</th>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Ngày</th>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Sản phẩm</th>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Số lượng</th>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Tổng tiền</th>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.map((order) => (
-                      <tr key={order.id} className="border-b" style={{ borderColor: '#e5e7eb' }}>
-                        <td className="py-3 px-4 text-sm">{order.id}</td>
-                        <td className="py-3 px-4 text-sm text-gray-600">{order.date}</td>
-                        <td className="py-3 px-4 text-sm">{order.products}</td>
-                        <td className="py-3 px-4 text-sm text-gray-600">{order.quantity}</td>
-                        <td className="py-3 px-4 text-sm" style={{ color: '#d4183d' }}>{order.total}</td>
-                        <td className="py-3 px-4 text-sm">
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            order.status === 'Đã giao' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {order.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <div className="grid md:grid-cols-4 gap-6 mb-8">
+          {statCards.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <div key={stat.label} className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <Icon size={28} style={{ color: stat.color }} />
+                  <span className="text-xs text-green-600">MongoDB</span>
+                </div>
+                <p className="text-2xl font-bold mb-1" style={{ color: '#0A2A4D' }}>{stat.value}</p>
+                <p className="text-sm text-gray-600">{stat.label}</p>
               </div>
-            )}
+            );
+          })}
+        </div>
 
-            {activeTab === 'negotiations' && (
-              <div className="space-y-4">
-                {negotiations.map((negotiation) => (
-                  <div key={negotiation.id} className="border rounded-lg p-4" style={{ borderColor: '#e5e7eb' }}>
-                    <div className="flex items-start justify-between mb-2">
+        <div className="bg-white rounded-lg shadow-sm p-2 mb-6 flex flex-wrap gap-2">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-5 py-3 rounded-md ${activeTab === tab.id ? 'text-white' : 'text-gray-700'}`}
+                style={{ backgroundColor: activeTab === tab.id ? '#0A2A4D' : 'transparent' }}
+              >
+                <Icon size={18} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          {loading && <p className="text-gray-500">Đang tải dữ liệu dashboard...</p>}
+
+          {!loading && activeTab === 'orders' && (
+            <div>
+              <h2 className="text-2xl mb-4" style={{ color: '#0A2A4D', fontWeight: 700 }}>Đơn hàng gần đây</h2>
+              {recentOrders.length === 0 ? (
+                <p className="text-gray-500">Chưa có đơn hàng nào.</p>
+              ) : (
+                <div className="space-y-4">
+                  {recentOrders.map((order) => (
+                    <div key={order._id || order.orderCode} className="border rounded-lg p-4 flex justify-between gap-4">
                       <div>
-                        <h4 className="mb-1" style={{ color: '#0A2647' }}>{negotiation.supplier}</h4>
-                        <p className="text-sm text-gray-600">{negotiation.product} - {negotiation.quantity}</p>
+                        <p className="font-semibold" style={{ color: '#0A2A4D' }}>{order.orderCode}</p>
+                        <p className="text-sm text-gray-600">{order.items?.map((item) => `${item.name} x${item.quantity}`).join(', ')}</p>
+                        <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleString('vi-VN')}</p>
                       </div>
-                      <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded text-sm">
-                        {negotiation.status}
-                      </span>
+                      <div className="text-right">
+                        <p className="font-bold">{formatCurrency(order.totalAmount)}</p>
+                        <span className="text-sm px-3 py-1 rounded-full bg-blue-50 text-blue-700">{order.status}</span>
+                      </div>
                     </div>
-                    <button 
-                      className="mt-3 px-4 py-2 rounded-md text-white text-sm"
-                      style={{ backgroundColor: '#00BCD4' }}
-                    >
-                      Tiếp tục thương lượng
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-            {activeTab === 'contracts' && (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b" style={{ borderColor: '#e5e7eb' }}>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Mã HĐ</th>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Nhà cung cấp</th>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Sản phẩm</th>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Ngày bắt đầu</th>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Ngày kết thúc</th>
-                      <th className="text-left py-3 px-4 text-sm" style={{ color: '#0A2647' }}>Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {contracts.map((contract) => (
-                      <tr key={contract.id} className="border-b" style={{ borderColor: '#e5e7eb' }}>
-                        <td className="py-3 px-4 text-sm">{contract.id}</td>
-                        <td className="py-3 px-4 text-sm">{contract.supplier}</td>
-                        <td className="py-3 px-4 text-sm">{contract.product}</td>
-                        <td className="py-3 px-4 text-sm text-gray-600">{contract.startDate}</td>
-                        <td className="py-3 px-4 text-sm text-gray-600">{contract.endDate}</td>
-                        <td className="py-3 px-4 text-sm">
-                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
-                            {contract.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          {!loading && activeTab === 'products' && (
+            <div>
+              <h2 className="text-2xl mb-4" style={{ color: '#0A2A4D', fontWeight: 700 }}>Sản phẩm nổi bật</h2>
+              {bestSellingProducts.length === 0 ? (
+                <p className="text-gray-500">Chưa có sản phẩm.</p>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {bestSellingProducts.map((product) => (
+                    <div key={product._id || product.productCode} className="border rounded-lg p-4 flex gap-4">
+                      {product.image && <img src={product.image} alt={product.name} className="w-20 h-20 object-cover rounded-md" />}
+                      <div>
+                        <p className="font-semibold" style={{ color: '#0A2A4D' }}>{product.name}</p>
+                        <p className="text-sm text-gray-600">{product.category}</p>
+                        <p className="font-bold">{formatCurrency(product.price)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-            {activeTab === 'history' && (
-              <div className="text-center py-12 text-gray-500">
-                <History className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Lịch sử giao dịch sẽ được hiển thị tại đây</p>
+          {!loading && activeTab === 'analytics' && (
+            <div>
+              <h2 className="text-2xl mb-4" style={{ color: '#0A2A4D', fontWeight: 700 }}>Biểu đồ tổng quan</h2>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#00BCD4" />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            )}
+            </div>
+          )}
 
-            {activeTab === 'notifications' && (
-              <div className="text-center py-12 text-gray-500">
-                <Bell className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Không có thông báo mới</p>
+          {!loading && activeTab === 'notifications' && (
+            <div>
+              <h2 className="text-2xl mb-4" style={{ color: '#0A2A4D', fontWeight: 700 }}>Thông báo hệ thống</h2>
+              <div className="space-y-4">
+                <div className="border-l-4 p-4 bg-blue-50" style={{ borderColor: '#00BCD4' }}>
+                  <p className="font-semibold">Dashboard đã kết nối backend</p>
+                  <p className="text-sm text-gray-600">Số liệu đang được lấy từ collection products, supplies và orders.</p>
+                </div>
+                <div className="border-l-4 p-4 bg-green-50" style={{ borderColor: '#10B981' }}>
+                  <p className="font-semibold">API hoạt động</p>
+                  <p className="text-sm text-gray-600">Bạn có thể refresh MongoDB để kiểm tra dữ liệu thay đổi.</p>
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

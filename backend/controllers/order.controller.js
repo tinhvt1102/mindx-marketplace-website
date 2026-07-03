@@ -146,15 +146,23 @@ export const getMyOrders = async (req, res) => {
 
 export const getSellerOrders = async (req, res) => {
   try {
-    const orders = await Order.find({
-      $or: [
-        { sellerId: req.user._id },
-        { sellerId: String(req.user._id) },
-        { "items.supplierId": req.user._id },
-        { "items.supplierId": String(req.user._id) },
-      ],
+    let filter = {
       isDeleted: { $ne: true },
-    }).sort({ createdAt: -1 });
+    };
+
+    if (req.user.role !== "admin") {
+      filter = {
+        $or: [
+          { sellerId: req.user._id },
+          { sellerId: String(req.user._id) },
+          { "items.supplierId": req.user._id },
+          { "items.supplierId": String(req.user._id) },
+        ],
+        isDeleted: { $ne: true },
+      };
+    }
+
+    const orders = await Order.find(filter).sort({ createdAt: -1 });
 
     res.status(200).json({
       message: "Get seller orders successfully",

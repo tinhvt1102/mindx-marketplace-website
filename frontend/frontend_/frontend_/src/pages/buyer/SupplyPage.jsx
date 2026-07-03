@@ -112,7 +112,7 @@ export function SupplyPage({ onNavigate }) {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredData.length > 0 ? filteredData.map((supply) => <SupplyCard key={supply.id} {...supply} onClick={() => onNavigate?.('supply')} />) : (
+              {filteredData.length > 0 ? filteredData.map((supply) => <SupplyCard key={supply.id} {...supply} />) : (
                 <div className="col-span-full text-center py-20 bg-white rounded-lg border-2 border-dashed"><p className="text-gray-400">Không tìm thấy sản lượng phù hợp với bộ lọc.</p></div>
               )}
             </div>
