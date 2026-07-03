@@ -80,7 +80,7 @@ export function DashboardPage() {
             <h1 className="text-3xl mb-2" style={{ color: '#0A2A4D', fontWeight: 700 }}>
               Dashboard
             </h1>
-            <p className="text-gray-600">Số liệu lấy trực tiếp từ MongoDB thông qua API dashboard.</p>
+            <p className="text-gray-600"></p>
           </div>
           <button
             onClick={loadDashboard}
@@ -99,7 +99,7 @@ export function DashboardPage() {
               <div key={stat.label} className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
                   <Icon size={28} style={{ color: stat.color }} />
-                  <span className="text-xs text-green-600">MongoDB</span>
+                  <span className="text-xs text-green-600"></span>
                 </div>
                 <p className="text-2xl font-bold mb-1" style={{ color: '#0A2A4D' }}>{stat.value}</p>
                 <p className="text-sm text-gray-600">{stat.label}</p>
@@ -197,12 +197,12 @@ export function DashboardPage() {
               <h2 className="text-2xl mb-4" style={{ color: '#0A2A4D', fontWeight: 700 }}>Thông báo hệ thống</h2>
               <div className="space-y-4">
                 <div className="border-l-4 p-4 bg-blue-50" style={{ borderColor: '#00BCD4' }}>
-                  <p className="font-semibold">Dashboard đã kết nối backend</p>
-                  <p className="text-sm text-gray-600">Số liệu đang được lấy từ collection products, supplies và orders.</p>
+                  <p className="font-semibold"></p>
+                  <p className="text-sm text-gray-600"></p>
                 </div>
                 <div className="border-l-4 p-4 bg-green-50" style={{ borderColor: '#10B981' }}>
-                  <p className="font-semibold">API hoạt động</p>
-                  <p className="text-sm text-gray-600">Bạn có thể refresh MongoDB để kiểm tra dữ liệu thay đổi.</p>
+                  <p className="font-semibold"></p>
+                  <p className="text-sm text-gray-600"></p>
                 </div>
               </div>
             </div>
