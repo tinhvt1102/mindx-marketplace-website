@@ -3,3 +3,7 @@ export { ENDPOINTS } from './endpoints';
 export { authApi } from './auth';
 export { productsApi } from './products';
 export { ordersApi } from './orders';
+export { cartApi } from './cart';
+export { suppliesApi } from './supplies';
+export { suppliersApi } from './suppliers';
+export { dashboardApi } from './dashboard';

@@ -1,19 +1,45 @@
-import { useState } from 'react';
-import { Edit, Send, Trash2, Eye, AlertCircle, CheckCircle, Clock, XCircle, Package, Filter } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Edit, Send, Trash2, Eye, AlertCircle, CheckCircle, Clock, XCircle, Package, Filter, RefreshCw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { apiClient } from '../../api/apiClient';
+import { ENDPOINTS } from '../../api/endpoints';
+
+const formatDate = (value) => {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('vi-VN');
+};
+
+const getListingName = (item) => item.name || item.seafoodType || item.species || 'Bài đăng chưa có tên';
+
+const normalizeProduct = (item) => ({
+  ...item,
+  id: item._id || item.id || item.productCode,
+  listingType: 'product',
+  type: 'product',
+  name: getListingName(item),
+  datePosted: item.createdAt || item.harvestDate,
+  status: item.isActive === false ? 'out_of_stock' : (item.status || 'approved'),
+  views: item.views || item.sold || 0,
+});
+
+const normalizeSupply = (item) => ({
+  ...item,
+  id: item._id || item.id || item.supplyCode,
+  listingType: 'supply',
+  type: 'supply',
+  name: getListingName(item),
+  datePosted: item.createdAt || item.harvestDate,
+  status: item.isActive === false ? 'out_of_stock' : (item.status || 'approved'),
+  views: item.views || 0,
+});
 
 export function ListingManagementPage({ onNavigate }) {
-  const [listings, setListings] = useState([
-    { id: '1', name: 'Tôm sú tươi size 20-25', type: 'supply', datePosted: '2026-06-05', status: 'approved', views: 234 },
-    { id: '2', name: 'Cá Tra phi lê chất lượng cao', type: 'product', datePosted: '2026-06-04', status: 'pending', views: 0 },
-    { id: '3', name: 'Tôm thẻ chân trắng size 40-50', type: 'supply', datePosted: '2026-06-03', status: 'approved', views: 189 },
-    { id: '4', name: 'Cua biển tươi sống', type: 'product', datePosted: '2026-06-02', status: 'draft', views: 0 },
-    { id: '5', name: 'Mực khô cao cấp', type: 'product', datePosted: '2026-06-01', status: 'rejected', views: 0 },
-    { id: '6', name: 'Cá Basa nguyên con', type: 'supply', datePosted: '2026-05-30', status: 'out_of_stock', views: 145 }
-  ]);
-
+  const [listings, setListings] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [loading, setLoading] = useState(false);
 
   const getStatusLabel = (status) => {
     const labels = {
@@ -21,9 +47,10 @@ export function ListingManagementPage({ onNavigate }) {
       pending: 'Chờ duyệt',
       approved: 'Đã duyệt',
       rejected: 'Từ chối',
-      out_of_stock: 'Hết hàng'
+      out_of_stock: 'Hết hàng',
+      new: 'Mới',
     };
-    return labels[status] || status;
+    return labels[status] || status || 'N/A';
   };
 
   const getStatusColor = (status) => {
@@ -32,290 +59,260 @@ export function ListingManagementPage({ onNavigate }) {
       pending: { bg: '#FEF3C7', text: '#D97706', icon: Clock },
       approved: { bg: '#D1FAE5', text: '#059669', icon: CheckCircle },
       rejected: { bg: '#FEE2E2', text: '#DC2626', icon: XCircle },
-      out_of_stock: { bg: '#E5E7EB', text: '#374151', icon: AlertCircle }
+      out_of_stock: { bg: '#E5E7EB', text: '#374151', icon: AlertCircle },
     };
     return colors[status] || { bg: '#F3F4F6', text: '#6B7280', icon: Edit };
   };
 
-  const handleEdit = (id) => {
-    onNavigate('seller-center');
+  const loadListings = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Bạn cần đăng nhập để xem bài đăng của mình!');
+      onNavigate?.('login');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const [productsRes, suppliesRes] = await Promise.all([
+        apiClient.get(ENDPOINTS.PRODUCTS.MY_PRODUCTS),
+        apiClient.get(ENDPOINTS.SUPPLIES.MY_SUPPLIES),
+      ]);
+
+      const products = (productsRes.data || []).map(normalizeProduct);
+      const supplies = (suppliesRes.data || []).map(normalizeSupply);
+
+      setListings([...products, ...supplies].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || 'Không tải được danh sách bài đăng');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleResubmit = (id) => {
-    setListings(listings.map(listing =>
-      listing.id === id ? { ...listing, status: 'pending' } : listing
-    ));
-    toast.success('Đã gửi lại bài đăng để xét duyệt thành công!');
-  };
+  useEffect(() => {
+    loadListings();
+  }, []);
 
-  const handleDelete = (id) => {
-    const targetListing = listings.find(l => l.id === id);
-    const listingName = targetListing ? targetListing.name : 'bài đăng';
-
-    toast((t) => (
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-gray-900">
-          Bạn có chắc chắn muốn xóa <strong>{listingName}</strong>?
-        </span>
-        <div className="flex justify-end gap-2 mt-1">
-          <button
-            onClick={() => toast.dismiss(t.id)}
-            className="px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded"
-          >
-            Hủy
-          </button>
-          <button
-            onClick={() => {
-              toast.dismiss(t.id);
-              setListings(prev => prev.filter(listing => listing.id !== id));
-              toast.error('Đã xóa bài đăng khỏi hệ thống!');
-            }}
-            className="px-2.5 py-1 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded"
-          >
-            Xác nhận xóa
-          </button>
-        </div>
-      </div>
-    ), {
-      duration: 5000,
-      position: 'top-center',
+  const filteredListings = useMemo(() => {
+    return listings.filter((listing) => {
+      const statusMatch = statusFilter === 'all' || listing.status === statusFilter;
+      const typeMatch = typeFilter === 'all' || listing.type === typeFilter;
+      return statusMatch && typeMatch;
     });
+  }, [listings, statusFilter, typeFilter]);
+
+  const handleEdit = () => {
+    toast('Bạn có thể vào Trung tâm người bán để tạo/cập nhật bài đăng mới.');
+    onNavigate?.('seller-center');
   };
 
-  const handleViewDetails = (id) => {
-    const targetListing = listings.find(l => l.id === id);
-    toast.loading(`Đang tải chi tiết: ${targetListing?.name || id}...`, {
-      duration: 1500
-    });
+  const handleResubmit = async (listing) => {
+    try {
+      if (listing.type === 'product') {
+        await apiClient.put(ENDPOINTS.PRODUCTS.UPDATE(listing.id), { status: 'approved', isActive: true });
+      } else {
+        await apiClient.put(ENDPOINTS.SUPPLIES.UPDATE(listing.id), { status: 'approved', isActive: true });
+      }
+
+      toast.success('Đã gửi duyệt/lên lại bài đăng!');
+      await loadListings();
+    } catch (error) {
+      toast.error(error.message || 'Không thể gửi lại bài đăng');
+    }
   };
 
-  const filteredListings = listings.filter(listing => {
-    if (statusFilter !== 'all' && listing.status !== statusFilter) return false;
-    if (typeFilter !== 'all' && listing.type !== typeFilter) return false;
-    return true;
-  });
+  const handleDelete = async (listing) => {
+    const ok = window.confirm(`Bạn có chắc muốn xóa bài "${listing.name}" không?`);
+    if (!ok) return;
+
+    try {
+      if (listing.type === 'product') {
+        await apiClient.delete(ENDPOINTS.PRODUCTS.DELETE(listing.id));
+      } else {
+        await apiClient.delete(ENDPOINTS.SUPPLIES.DELETE(listing.id));
+      }
+
+      toast.success('Đã xóa bài đăng khỏi MongoDB!');
+      await loadListings();
+    } catch (error) {
+      toast.error(error.message || 'Không thể xóa bài đăng');
+    }
+  };
+
+  const stats = {
+    total: listings.length,
+    approved: listings.filter((item) => item.status === 'approved').length,
+    pending: listings.filter((item) => item.status === 'pending' || item.status === 'draft').length,
+    views: listings.reduce((sum, item) => sum + Number(item.views || 0), 0),
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold mb-2" style={{ color: '#0A2647' }}>Quản lý bài đăng</h1>
-          <p className="text-gray-600">Quản lý tất cả bài đăng sản lượng và sản phẩm của bạn</p>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="mb-8 flex justify-between gap-4 items-start">
+          <div>
+            <h1 className="text-3xl mb-2" style={{ color: '#0A2A4D', fontWeight: 700 }}>
+              Quản lý bài đăng
+            </h1>
+            <p className="text-gray-600">
+              
+            </p>
+          </div>
+          <button
+            onClick={loadListings}
+            className="px-4 py-2 border rounded-md flex items-center gap-2 bg-white"
+            disabled={loading}
+          >
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            Tải lại
+          </button>
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-gray-500" />
-              <span className="text-sm font-medium" style={{ color: '#0A2647' }}>Lọc:</span>
-            </div>
-
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Filter style={{ color: '#0A2A4D' }} />
+            <span className="font-medium">Lọc:</span>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border rounded-md text-sm outline-none"
-              style={{ borderColor: '#e5e7eb' }}
+              className="px-4 py-2 border rounded-md"
             >
               <option value="all">Tất cả trạng thái</option>
-              <option value="draft">Nháp</option>
-              <option value="pending">Chờ duyệt</option>
               <option value="approved">Đã duyệt</option>
+              <option value="pending">Chờ duyệt</option>
+              <option value="draft">Nháp</option>
               <option value="rejected">Từ chối</option>
               <option value="out_of_stock">Hết hàng</option>
             </select>
-
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="px-4 py-2 border rounded-md text-sm outline-none"
-              style={{ borderColor: '#e5e7eb' }}
+              className="px-4 py-2 border rounded-md"
             >
               <option value="all">Tất cả loại</option>
               <option value="supply">Sản lượng</option>
               <option value="product">Sản phẩm</option>
             </select>
+          </div>
 
-            <div className="ml-auto">
-              <button
-                onClick={() => onNavigate('seller-center')}
-                className="px-6 py-2 rounded-md text-white font-medium hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: '#00BCD4' }}
-              >
-                + Tạo bài đăng mới
-              </button>
-            </div>
+          <button
+            onClick={() => onNavigate?.('seller-center')}
+            className="px-6 py-3 text-white rounded-md"
+            style={{ backgroundColor: '#00BCD4' }}
+          >
+            + Tạo bài đăng mới
+          </button>
+        </div>
+
+        <div className="grid md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-5">
+            <p className="text-sm text-gray-600 mb-2">Tổng bài đăng</p>
+            <p className="text-3xl font-bold" style={{ color: '#0A2A4D' }}>{stats.total}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-5">
+            <p className="text-sm text-gray-600 mb-2">Đã duyệt</p>
+            <p className="text-3xl font-bold text-green-600">{stats.approved}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-5">
+            <p className="text-sm text-gray-600 mb-2">Chờ duyệt / Nháp</p>
+            <p className="text-3xl font-bold text-yellow-600">{stats.pending}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-5">
+            <p className="text-sm text-gray-600 mb-2">Tổng lượt xem</p>
+            <p className="text-3xl font-bold" style={{ color: '#0A2A4D' }}>{stats.views}</p>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Tổng bài đăng</p>
-                <h3 className="text-2xl font-bold" style={{ color: '#0A2647' }}>{listings.length}</h3>
-              </div>
-              <Package className="w-10 h-10 p-2 rounded-full" style={{ backgroundColor: '#E0F7FA', color: '#00BCD4' }} />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Đã duyệt</p>
-                <h3 className="text-2xl font-bold" style={{ color: '#059669' }}>{listings.filter(l => l.status === 'approved').length}</h3>
-              </div>
-              <CheckCircle className="w-10 h-10 p-2 rounded-full" style={{ backgroundColor: '#D1FAE5', color: '#059669' }} />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Chờ duyệt</p>
-                <h3 className="text-2xl font-bold" style={{ color: '#D97706' }}>{listings.filter(l => l.status === 'pending').length}</h3>
-              </div>
-              <Clock className="w-10 h-10 p-2 rounded-full" style={{ backgroundColor: '#FEF3C7', color: '#D97706' }} />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Tổng lượt xem</p>
-                <h3 className="text-2xl font-bold" style={{ color: '#0A2647' }}>{listings.reduce((sum, l) => sum + l.views, 0)}</h3>
-              </div>
-              <Eye className="w-10 h-10 p-2 rounded-full" style={{ backgroundColor: '#E5E7EB', color: '#6B7280' }} />
-            </div>
-          </div>
-        </div>
-
-        {/* Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {loading ? (
+            <div className="p-10 text-center text-gray-500"></div>
+          ) : filteredListings.length === 0 ? (
+            <div className="p-10 text-center text-gray-500">
+              Chưa có bài đăng nào.
+            </div>
+          ) : (
             <table className="w-full">
-              <thead className="bg-gray-50 border-b" style={{ borderColor: '#e5e7eb' }}>
+              <thead style={{ backgroundColor: '#F9FAFB' }}>
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#0A2647' }}>Tên bài đăng</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#0A2647' }}>Loại</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#0A2647' }}>Ngày đăng</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#0A2647' }}>Trạng thái</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#0A2647' }}>Lượt xem</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: '#0A2647' }}>Hành động</th>
+                  <th className="text-left p-4">Tên bài đăng</th>
+                  <th className="text-left p-4">Loại</th>
+                  <th className="text-left p-4">Ngày đăng</th>
+                  <th className="text-left p-4">Trạng thái</th>
+                  <th className="text-left p-4">Lượt xem</th>
+                  <th className="text-center p-4">Hành động</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredListings.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                      Không có bài đăng nào
-                    </td>
-                  </tr> /* Đã sửa lỗi thẻ đóng ở đây */
-                ) : (
-                  filteredListings.map((listing) => {
-                    const statusConfig = getStatusColor(listing.status);
-                    const StatusIcon = statusConfig.icon;
-
-                    return (
-                      <tr key={listing.id} className="border-b hover:bg-gray-50" style={{ borderColor: '#e5e7eb' }}>
-                        <td className="px-6 py-4">
-                          <span className="font-medium" style={{ color: '#0A2647' }}>{listing.name}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-3 py-1 rounded-full text-xs text-white inline-block" style={{ backgroundColor: listing.type === 'supply' ? '#2C5F8D' : '#00BCD4' }}>
-                            {listing.type === 'supply' ? 'Sản lượng' : 'Sản phẩm'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {new Date(listing.datePosted).toLocaleDateString('vi-VN')}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="p-1 rounded-full" style={{ backgroundColor: statusConfig.bg }}>
-                              <StatusIcon className="w-4 h-4" style={{ color: statusConfig.text }} />
-                            </div>
-                            <span className="text-sm font-medium" style={{ color: statusConfig.text }}>
-                              {getStatusLabel(listing.status)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          <div className="flex items-center gap-1">
-                            <Eye className="w-4 h-4 text-gray-400" />
-                            {listing.views}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            {(listing.status === 'draft' || listing.status === 'rejected') && (
-                              <button
-                                onClick={() => handleEdit(listing.id)}
-                                className="p-2 hover:bg-blue-50 rounded-md transition-colors"
-                                style={{ color: '#00BCD4' }}
-                                title="Chỉnh sửa"
-                              >
-                                <Edit className="w-5 h-5" />
-                              </button>
-                            )}
-                            {(listing.status === 'rejected' || listing.status === 'draft') && (
-                              <button
-                                onClick={() => handleResubmit(listing.id)}
-                                className="p-2 hover:bg-green-50 rounded-md transition-colors"
-                                style={{ color: '#059669' }}
-                                title="Gửi lại duyệt"
-                              >
-                                <Send className="w-5 h-5" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleViewDetails(listing.id)}
-                              className="p-2 hover:bg-gray-100 rounded-md text-gray-600 transition-colors"
-                              title="Xem chi tiết"
-                            >
-                              <Eye className="w-5 h-5" />
+                {filteredListings.map((listing) => {
+                  const statusStyle = getStatusColor(listing.status);
+                  const StatusIcon = statusStyle.icon;
+                  return (
+                    <tr key={`${listing.type}-${listing.id}`} className="border-t">
+                      <td className="p-4">
+                        <div>
+                          <p className="font-medium" style={{ color: '#0A2A4D' }}>{listing.name}</p>
+                          <p className="text-xs text-gray-500">{listing.productCode || listing.supplyCode}</p>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <span
+                          className="px-3 py-1 rounded-full text-sm text-white"
+                          style={{ backgroundColor: listing.type === 'supply' ? '#0A2A4D' : '#00BCD4' }}
+                        >
+                          {listing.type === 'supply' ? 'Sản lượng' : 'Sản phẩm'}
+                        </span>
+                      </td>
+                      <td className="p-4">{formatDate(listing.datePosted)}</td>
+                      <td className="p-4">
+                        <span
+                          className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm"
+                          style={{ backgroundColor: statusStyle.bg, color: statusStyle.text }}
+                        >
+                          <StatusIcon size={16} />
+                          {getStatusLabel(listing.status)}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Eye size={16} />
+                          {listing.views}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center justify-center gap-3">
+                          <button onClick={() => handleEdit(listing)} className="text-blue-500 hover:text-blue-700">
+                            <Edit size={18} />
+                          </button>
+                          {(listing.status === 'draft' || listing.status === 'rejected') && (
+                            <button onClick={() => handleResubmit(listing)} className="text-green-500 hover:text-green-700">
+                              <Send size={18} />
                             </button>
-                            <button
-                              onClick={() => handleDelete(listing.id)}
-                              className="p-2 hover:bg-red-50 rounded-md text-red-500 transition-colors"
-                              title="Xóa"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                          )}
+                          <button onClick={() => handleDelete(listing)} className="text-red-500 hover:text-red-700">
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          </div>
+          )}
         </div>
 
-        {/* Help Section */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-base font-semibold mb-3 flex items-center gap-2" style={{ color: '#0A2647' }}>
-            <AlertCircle className="w-5 h-5" style={{ color: '#00BCD4' }} />
-            Trạng thái bài đăng
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex gap-3">
+            <AlertCircle style={{ color: '#0A2A4D' }} />
             <div>
-              <strong className="block mb-1" style={{ color: '#0A2647' }}>Nháp:</strong>
-              <p className="text-gray-600">Bài đăng chưa được gửi để xét duyệt</p>
-            </div>
-            <div>
-              <strong className="block mb-1" style={{ color: '#0A2647' }}>Chờ duyệt:</strong>
-              <p className="text-gray-600">Đang chờ Admin xem xét và phê duyệt</p>
-            </div>
-            <div>
-              <strong className="block mb-1" style={{ color: '#0A2647' }}>Đã duyệt:</strong>
-              <p className="text-gray-600">Đã được phê duyệt và hiển thị công khai</p>
-            </div>
-            <div>
-              <strong className="block mb-1" style={{ color: '#0A2647' }}>Từ chối:</strong>
-              <p className="text-gray-600">Bị từ chối, cần chỉnh sửa và gửi lại</p>
-            </div>
-            <div>
-              <strong className="block mb-1" style={{ color: '#0A2647' }}>Hết hàng:</strong>
-              <p className="text-gray-600">Sản phẩm đã hết hàng tạm thời</p>
+              <h4 className="font-semibold mb-1" style={{ color: '#0A2A4D' }}></h4>
+              <p className="text-sm text-gray-700">
+                 <b></b>  
+                
+              </p>
             </div>
           </div>
         </div>

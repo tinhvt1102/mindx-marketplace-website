@@ -59,6 +59,8 @@ export function LoginPage({ onNavigate, setCart }) {
         localStorage.setItem(
           "currentUser",
           JSON.stringify({
+            id: response.user?.id || response.user?._id || response.id || response._id,
+            _id: response.user?._id || response.user?.id || response._id || response.id,
             email: response.user?.email || response.email || email,
             name: response.user?.name || response.name || "User",
             role: response.user?.role || response.role || "buyer",
@@ -80,7 +82,8 @@ export function LoginPage({ onNavigate, setCart }) {
           email: email ? email.trim() : "",
           password: password,
           phone: null,
-          address: null
+          address: null,
+          role: selectedRole?.id || "buyer"
         };
 
         console.log("Dữ liệu đăng ký gửi đi:", registrationData);

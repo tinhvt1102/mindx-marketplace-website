@@ -1,96 +1,74 @@
-import { useState, useMemo } from 'react';
-import { Filter, SlidersHorizontal } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Filter } from 'lucide-react';
 import { SupplierCard } from '../../components/SupplierCard';
+import { suppliersApi } from '../../api/suppliers';
+
+const fallbackSuppliers = [
+  {
+    id: '1',
+    name: 'Hộ nuôi Hải Sản Phát Đạt',
+    image: 'https://images.unsplash.com/photo-1645692396914-4ca9df38cce3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080',
+    location: 'Cà Mau',
+    rating: 5,
+    reviews: 128,
+    certifications: ['VietGAP', 'GlobalGAP'],
+    availableSupply: 'Tôm sú, Tôm thẻ - 20 tấn/tháng',
+    verified: true,
+    type: 'Hộ nuôi cá nhân',
+  },
+];
+
+const normalizeSupplier = (supplier) => ({
+  ...supplier,
+  id: supplier.id || supplier._id || supplier.legacyId,
+  name: supplier.name || supplier.farmName || supplier.ownerName || 'Nhà cung cấp',
+  image: supplier.image || supplier.avatar || supplier.coverImage || 'https://images.unsplash.com/photo-1645692396914-4ca9df38cce3?q=80&w=1080',
+  location: supplier.location || supplier.province || supplier.region || 'Đang cập nhật',
+  rating: Math.round(supplier.rating || 5),
+  reviews: supplier.reviews || supplier.totalReviews || 0,
+  certifications: supplier.certifications || [],
+  availableSupply: supplier.availableSupply || supplier.availableSupplyText || 'Đang cập nhật sản lượng',
+  verified: supplier.verified ?? supplier.isVerified ?? false,
+  type: supplier.supplierType || supplier.type || 'Hộ nuôi cá nhân',
+});
 
 export function SuppliersPage({ onNavigate }) {
-  const [showFilters, setShowFilters] = useState(true);
-
-  // --- 1. State quản lý bộ lọc ---
+  const [showFilters] = useState(true);
   const [selectedSupplierTypes, setSelectedSupplierTypes] = useState([]);
   const [selectedCerts, setSelectedCerts] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState('Tất cả tỉnh thành');
   const [onlyVerified, setOnlyVerified] = useState(false);
+  const [suppliers, setSuppliers] = useState(fallbackSuppliers);
+  const [loading, setLoading] = useState(false);
 
-  const suppliers = [
-    {
-      id: '1',
-      name: 'Hộ nuôi Hải Sản Phát Đạt',
-      image: 'https://images.unsplash.com/photo-1645692396914-4ca9df38cce3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhcXVhY3VsdHVyZSUyMGZhcm0lMjBwb25kfGVufDF8fHx8MTc3MjcxMTU0Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-      location: 'Cà Mau',
-      rating: 5,
-      reviews: 128,
-      certifications: ['VietGAP', 'GlobalGAP'],
-      availableSupply: 'Tôm sú, Tôm thẻ - 20 tấn/tháng',
-      verified: true
-    },
-    {
-      id: '2',
-      name: 'Hộ nuôi Thủy Sản Miền Tây',
-      image: 'https://images.unsplash.com/photo-1703756292793-287f082d3a45?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaHJpbXAlMjBmYXJtaW5nJTIwYXNpYXxlbnwxfHx8fDE3NzI3MTE1NDZ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      location: 'An Giang',
-      rating: 5,
-      reviews: 95,
-      certifications: ['VietGAP', 'ASC'],
-      availableSupply: 'Cá Tra, Cá Basa - 50 tấn/tháng',
-      verified: true
-    },
-    {
-      id: '3',
-      name: 'Hộ nuôi Hải Phong',
-      image: 'https://images.unsplash.com/photo-1645692396914-4ca9df38cce3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhcXVhY3VsdHVyZSUyMGZhcm0lMjBwb25kfGVufDF8fHx8MTc3MjcxMTU0Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-      location: 'Bạc Liêu',
-      rating: 4,
-      reviews: 67,
-      certifications: ['VietGAP'],
-      availableSupply: 'Tôm thẻ - 15 tấn/tháng',
-      verified: false
-    },
-    {
-      id: '4',
-      name: 'Hộ nuôi Hải Sản Vạn Phát',
-      image: 'https://images.unsplash.com/photo-1703756292793-287f082d3a45?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaHJpbXAlMjBmYXJtaW5nJTIwYXNpYXxlbnwxfHx8fDE3NzI3MTE1NDZ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      location: 'Sóc Trăng',
-      rating: 5,
-      reviews: 143,
-      certifications: ['VietGAP', 'GlobalGAP', 'ASC'],
-      availableSupply: 'Tôm sú - 30 tấn/tháng',
-      verified: true
-    },
-    {
-      id: '5',
-      name: 'Hộ nuôi Thủy Sản Đồng Bằng',
-      image: 'https://images.unsplash.com/photo-1645692396914-4ca9df38cce3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhcXVhY3VsdHVyZSUyMGZhcm0lMjBwb25kfGVufDF8fHx8MTc3MjcxMTU0Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-      location: 'Đồng Tháp',
-      rating: 4,
-      reviews: 82,
-      certifications: ['VietGAP'],
-      availableSupply: 'Cá Tra, Cá Basa - 40 tấn/tháng',
-      verified: true
-    },
-    {
-      id: '6',
-      name: 'Hộ nuôi Hải Sản Nam Bộ',
-      image: 'https://images.unsplash.com/photo-1703756292793-287f082d3a45?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaHJpbXAlMjBmYXJtaW5nJTIwYXNpYXxlbnwxfHx8fDE3NzI3MTE1NDZ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      location: 'Kiên Giang',
-      rating: 5,
-      reviews: 76,
-      certifications: ['VietGAP', 'GlobalGAP'],
-      availableSupply: 'Cua, Ghẹ - 10 tấn/tháng',
-      verified: true
-    }
-  ];
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      setLoading(true);
+      try {
+        const response = await suppliersApi.list();
+        const data = (response.data || []).map(normalizeSupplier);
+        if (data.length > 0) setSuppliers(data);
+      } catch (error) {
+        console.warn('Không tải được suppliers từ backend:', error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // --- 2. Logic lọc dữ liệu ---
+    loadSuppliers();
+  }, []);
+
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter(s => {
       const matchType = selectedSupplierTypes.length === 0 || selectedSupplierTypes.includes(s.type);
       const matchCert = selectedCerts.length === 0 || selectedCerts.some(c => s.certifications.includes(c));
       const matchLocation = selectedLocation === 'Tất cả tỉnh thành' || s.location === selectedLocation;
       const matchVerified = !onlyVerified || s.verified === true;
-
       return matchType && matchCert && matchLocation && matchVerified;
     });
-  }, [selectedSupplierTypes, selectedCerts, selectedLocation, onlyVerified]);
+  }, [suppliers, selectedSupplierTypes, selectedCerts, selectedLocation, onlyVerified]);
+
+  const locations = useMemo(() => ['Tất cả tỉnh thành', ...new Set(suppliers.map(s => s.location).filter(Boolean))], [suppliers]);
 
   const toggleFilter = (list, setList, item) => {
     setList(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]);
@@ -105,89 +83,50 @@ export function SuppliersPage({ onNavigate }) {
         </div>
 
         <div className="flex gap-6">
-          {/* Sidebar Filter */}
           <div className={`${showFilters ? 'block' : 'hidden'} lg:block w-full lg:w-64 flex-shrink-0`}>
             <div className="bg-white rounded-lg shadow-sm p-6 sticky top-20">
-              <h3 className="flex items-center gap-2 mb-4" style={{ color: '#0A2647' }}>
-                <Filter className="w-5 h-5" /> Bộ lọc
-              </h3>
+              <h3 className="flex items-center gap-2 mb-4" style={{ color: '#0A2647' }}><Filter className="w-5 h-5" /> Bộ lọc</h3>
 
               <div className="space-y-6">
-                {/* Loại nhà cung cấp */}
                 <div>
                   <label className="block text-sm mb-2 font-medium">Loại nhà cung cấp</label>
                   <div className="space-y-2">
-                    {['Hộ nuôi cá nhân', 'Doanh nghiệp', 'Hợp tác xã'].map((type) => (
+                    {['Hộ nuôi cá nhân', 'company', 'cooperative', 'farm'].map((type) => (
                       <label key={type} className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="rounded text-[#00BCD4]" 
-                          checked={selectedSupplierTypes.includes(type)}
-                          onChange={() => toggleFilter(selectedSupplierTypes, setSelectedSupplierTypes, type)}
-                        />
-                        {type}
+                        <input type="checkbox" className="rounded text-[#00BCD4]" checked={selectedSupplierTypes.includes(type)} onChange={() => toggleFilter(selectedSupplierTypes, setSelectedSupplierTypes, type)} />
+                        {type === 'company' ? 'Doanh nghiệp' : type === 'cooperative' ? 'Hợp tác xã' : type === 'farm' ? 'Trang trại' : type}
                       </label>
                     ))}
                   </div>
                 </div>
 
-                {/* Chứng nhận */}
                 <div>
                   <label className="block text-sm mb-2 font-medium">Chứng nhận</label>
                   <div className="space-y-2">
                     {['VietGAP', 'GlobalGAP', 'ASC', 'BAP'].map((cert) => (
                       <label key={cert} className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="rounded text-[#00BCD4]"
-                          checked={selectedCerts.includes(cert)}
-                          onChange={() => toggleFilter(selectedCerts, setSelectedCerts, cert)}
-                        />
+                        <input type="checkbox" className="rounded text-[#00BCD4]" checked={selectedCerts.includes(cert)} onChange={() => toggleFilter(selectedCerts, setSelectedCerts, cert)} />
                         {cert}
                       </label>
                     ))}
                   </div>
                 </div>
 
-                {/* Địa điểm */}
                 <div>
                   <label className="block text-sm mb-2 font-medium">Địa điểm</label>
-                  <select 
-                    className="w-full p-2 border rounded-md text-sm focus:ring-[#00BCD4]" 
-                    style={{ borderColor: '#e5e7eb' }}
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                  >
-                    <option>Tất cả tỉnh thành</option>
-                    {['Cà Mau', 'Bạc Liêu', 'Sóc Trăng', 'An Giang', 'Đồng Tháp', 'Kiên Giang'].map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
+                  <select className="w-full p-2 border rounded-md text-sm focus:ring-[#00BCD4]" style={{ borderColor: '#e5e7eb' }} value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}>
+                    {locations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
                   </select>
                 </div>
 
-                {/* Xác thực */}
                 <div>
                   <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer font-medium">
-                    <input 
-                      type="checkbox" 
-                      className="rounded text-[#00BCD4]" 
-                      checked={onlyVerified}
-                      onChange={(e) => setOnlyVerified(e.target.checked)}
-                    />
+                    <input type="checkbox" className="rounded text-[#00BCD4]" checked={onlyVerified} onChange={(e) => setOnlyVerified(e.target.checked)} />
                     Chỉ hiện đã xác thực
                   </label>
                 </div>
 
-                <button 
-                  onClick={() => {
-                    setSelectedSupplierTypes([]);
-                    setSelectedCerts([]);
-                    setSelectedLocation('Tất cả tỉnh thành');
-                    setOnlyVerified(false);
-                  }}
-                  className="w-full py-2 rounded-md text-sm border hover:bg-gray-50 transition-colors"
-                  style={{ color: '#0A2647', borderColor: '#0A2647' }}
-                >
+                <button onClick={() => { setSelectedSupplierTypes([]); setSelectedCerts([]); setSelectedLocation('Tất cả tỉnh thành'); setOnlyVerified(false); }} className="w-full py-2 rounded-md text-sm border hover:bg-gray-50 transition-colors" style={{ color: '#0A2647', borderColor: '#0A2647' }}>
                   Xóa tất cả
                 </button>
               </div>
@@ -196,24 +135,14 @@ export function SuppliersPage({ onNavigate }) {
 
           <div className="flex-1">
             <div className="flex items-center justify-between mb-6">
-              <p className="text-sm text-gray-600">
-                Tìm thấy <span className="font-medium text-[#00BCD4]">{filteredSuppliers.length}</span> nhà cung cấp
-              </p>
+              <p className="text-sm text-gray-600">{loading ? 'Đang tải...' : <>Tìm thấy <span className="font-medium text-[#00BCD4]">{filteredSuppliers.length}</span> nhà cung cấp</>}</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {filteredSuppliers.length > 0 ? (
-                filteredSuppliers.map((supplier) => (
-                  <SupplierCard 
-                    key={supplier.id} 
-                    {...supplier} 
-                    onClick={() => onNavigate('farm-profile', supplier.id)}
-                  />
-                ))
-              ) : (
-                <div className="col-span-full py-20 text-center bg-white rounded-lg border-2 border-dashed border-gray-200">
-                  <p className="text-gray-400">Không tìm thấy nhà cung cấp nào phù hợp.</p>
-                </div>
+              {filteredSuppliers.length > 0 ? filteredSuppliers.map((supplier) => (
+                <SupplierCard key={supplier.id} {...supplier} onClick={() => onNavigate('farm-profile', supplier.id)} />
+              )) : (
+                <div className="col-span-full py-20 text-center bg-white rounded-lg border-2 border-dashed border-gray-200"><p className="text-gray-400">Không tìm thấy nhà cung cấp nào phù hợp.</p></div>
               )}
             </div>
           </div>

@@ -1,16 +1,5 @@
-/**
- * API Client wrapper using Fetch API with support for:
- * - Base URL configuration via environment variables
- * - Request authorization headers (auto bearer token injection)
- * - Response JSON parsing & error handling
- * - Easy standard HTTP methods (GET, POST, PUT, DELETE)
- */
-
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
-/**
- * Custom error class for API responses
- */
 class ApiError extends Error {
   constructor(message, status, data) {
     super(message);
@@ -20,25 +9,29 @@ class ApiError extends Error {
   }
 }
 
-/**
- * Main request sender wrapper
- */
+function getStoredToken() {
+  const directToken = localStorage.getItem('token');
+  if (directToken) return directToken;
+
+  try {
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    return currentUser?.token || null;
+  } catch (error) {
+    return null;
+  }
+}
+
 async function request(endpoint, options = {}) {
   const url = `${BASE_URL.replace(/\/$/, '')}/${endpoint.replace(/^\//, '')}`;
 
-  // Default headers
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   };
 
-  // Auto-inject Token from localStorage if exists
-  const token = localStorage.getItem('token') || localStorage.getItem('currentUser') 
-    ? JSON.parse(localStorage.getItem('currentUser') || '{}').token 
-    : null;
-
+  const token = getStoredToken();
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const config = {
@@ -52,11 +45,9 @@ async function request(endpoint, options = {}) {
 
   try {
     const response = await fetch(url, config);
-    
-    // Check if empty response or text
     const contentType = response.headers.get('content-type');
     let data = null;
-    
+
     if (contentType && contentType.includes('application/json')) {
       data = await response.json();
     } else {
@@ -64,11 +55,9 @@ async function request(endpoint, options = {}) {
     }
 
     if (!response.ok) {
-      // Handle unauthorized (401) token expiration
       if (response.status === 401) {
         localStorage.removeItem('currentUser');
         localStorage.removeItem('token');
-        // You can dispatch a custom event or redirect to login page here if needed
         window.dispatchEvent(new Event('auth-expired'));
       }
 
@@ -78,15 +67,11 @@ async function request(endpoint, options = {}) {
 
     return data;
   } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    // Network errors or parsing errors
-    throw new ApiError(error.message || 'Lỗi kết nối mạng', 500, null);
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(error.message || 'Lỗi kết nối backend', 500, null);
   }
 }
 
-// HTTP helper methods
 export const apiClient = {
   get: (endpoint, options = {}) => request(endpoint, { ...options, method: 'GET' }),
   post: (endpoint, body, options = {}) => request(endpoint, { ...options, method: 'POST', body }),

@@ -1,43 +1,65 @@
-import { useState, useMemo } from 'react'; // Sử dụng useMemo để tối ưu hiệu năng lọc
-import { Filter, SlidersHorizontal } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Filter } from 'lucide-react';
 import { SupplyCard } from '../../components/SupplyCard';
+import { suppliesApi } from '../../api/supplies';
+
+const fallbackSupply = [
+  { id: '1', species: 'Tôm sú', type: 'Tôm', image: 'https://images.unsplash.com/photo-1759244566095-d6047dfde9c9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080', size: '20-25 con/kg', harvestTime: '15/03/2026', quantity: 5, location: 'Cà Mau', farmerName: 'Nguyễn Văn A' },
+  { id: '2', species: 'Cá Tra', type: 'Cá', image: 'https://images.unsplash.com/photo-1674066620888-4878aad91094?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080', size: '0.8-1.2 kg/con', harvestTime: '20/03/2026', quantity: 10, location: 'An Giang', farmerName: 'Trần Thị B' },
+];
+
+const normalizeSupply = (item) => ({
+  ...item,
+  id: item.id || item._id || item.legacyId || item.supplyCode,
+  species: item.species || item.seafoodType || item.name || 'Nguồn cung hải sản',
+  type: item.category || item.seafoodType || item.species || 'Khác',
+  image: item.image || item.images?.[0] || 'https://images.unsplash.com/photo-1759244566095-d6047dfde9c9?q=80&w=1080',
+  size: item.size || 'Đang cập nhật',
+  harvestTime: item.harvestTime || item.harvestDate || 'Đang cập nhật',
+  quantity: `${item.quantity || 0} ${item.unit || 'kg'}`,
+  quantityNumber: Number(item.quantity || 0),
+  location: item.location || item.province || item.origin || 'Đang cập nhật',
+  farmerName: item.supplier?.name || item.supplierName || item.farmerName || 'Nhà cung cấp',
+});
 
 export function SupplyPage({ onNavigate }) {
-  const [showFilters, setShowFilters] = useState(true);
-
-  // --- 1. State quản lý bộ lọc ---
+  const [showFilters] = useState(true);
   const [selectedTypes, setSelectedTypes] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState('Tất cả tỉnh thành');
   const [minQuantity, setMinQuantity] = useState('');
+  const [supplyData, setSupplyData] = useState(fallbackSupply);
+  const [loading, setLoading] = useState(false);
 
-  const supplyData = [
-    { id: '1', species: 'Tôm sú', type: 'Tôm', image: 'https://images.unsplash.com/photo-1759244566095-d6047dfde9c9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080', size: '20-25 con/kg', harvestTime: '15/03/2026', quantity: 5, location: 'Cà Mau', farmerName: 'Nguyễn Văn A' },
-    { id: '2', species: 'Cá Tra', type: 'Cá', image: 'https://images.unsplash.com/photo-1674066620888-4878aad91094?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080', size: '0.8-1.2 kg/con', harvestTime: '20/03/2026', quantity: 10, location: 'An Giang', farmerName: 'Trần Thị B' },
-    { id: '3', species: 'Tôm thẻ chân trắng', type: 'Tôm', image: 'https://images.unsplash.com/photo-1759244566095-d6047dfde9c9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080', size: '60-70 con/kg', harvestTime: '10/03/2026', quantity: 3, location: 'Bạc Liêu', farmerName: 'Lê Văn C' },
-    { id: '4', species: 'Cua biển', type: 'Cua', image: 'https://images.unsplash.com/photo-1609834272245-8ca8337f81f7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080', size: '300-400g/con', harvestTime: '12/03/2026', quantity: 2, location: 'Kiên Giang', farmerName: 'Phạm Văn D' },
-  ];
+  useEffect(() => {
+    const loadSupplies = async () => {
+      setLoading(true);
+      try {
+        const response = await suppliesApi.list({ limit: 100 });
+        const data = (response.data || []).map(normalizeSupply);
+        if (data.length > 0) setSupplyData(data);
+      } catch (error) {
+        console.warn('Không tải được supplies từ backend:', error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // --- 2. Logic lọc dữ liệu ---
+    loadSupplies();
+  }, []);
+
   const filteredData = useMemo(() => {
     return supplyData.filter(item => {
-      // Lọc theo loại hải sản (Tôm, Cá, Cua...)
-      const matchType = selectedTypes.length === 0 || selectedTypes.includes(item.type);
-
-      // Lọc theo tỉnh thành
+      const matchType = selectedTypes.length === 0 || selectedTypes.some(type => String(item.type).toLowerCase().includes(type.toLowerCase()) || String(item.species).toLowerCase().includes(type.toLowerCase()));
       const matchLocation = selectedLocation === 'Tất cả tỉnh thành' || item.location === selectedLocation;
-
-      // Lọc theo sản lượng tối thiểu
-      const matchQuantity = minQuantity === '' || item.quantity >= parseFloat(minQuantity);
-
+      const matchQuantity = minQuantity === '' || Number(item.quantityNumber || 0) >= parseFloat(minQuantity);
       return matchType && matchLocation && matchQuantity;
     });
-  }, [selectedTypes, selectedLocation, minQuantity]);
+  }, [supplyData, selectedTypes, selectedLocation, minQuantity]);
 
-  // Hàm xử lý khi check/uncheck loại hải sản
+  const locations = useMemo(() => ['Tất cả tỉnh thành', ...new Set(supplyData.map(item => item.location).filter(Boolean))], [supplyData]);
+
   const handleTypeChange = (type) => {
-    setSelectedTypes(prev =>
-      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
-    );
+    setSelectedTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
   };
 
   return (
@@ -49,106 +71,49 @@ export function SupplyPage({ onNavigate }) {
         </div>
 
         <div className="flex gap-6">
-          {/* Sidebar Filter */}
           <div className={`${showFilters ? 'block' : 'hidden'} lg:block w-full lg:w-64 flex-shrink-0`}>
             <div className="bg-white rounded-lg shadow-sm p-6 sticky top-20">
-              <h3 className="flex items-center gap-2 mb-4" style={{ color: '#0A2647' }}>
-                <Filter className="w-5 h-5" /> Bộ lọc
-              </h3>
-
+              <h3 className="flex items-center gap-2 mb-4" style={{ color: '#0A2647' }}><Filter className="w-5 h-5" /> Bộ lọc</h3>
               <div className="space-y-6">
-                {/* Lọc theo loại */}
                 <div>
                   <label className="block text-sm mb-2 font-medium">Loại hải sản</label>
                   <div className="space-y-2">
                     {['Tôm', 'Cá', 'Cua', 'Mực', 'Khác'].map((type) => (
                       <label key={type} className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedTypes.includes(type)}
-                          onChange={() => handleTypeChange(type)}
-                          className="rounded text-[#00BCD4] focus:ring-[#00BCD4]"
-                        />
+                        <input type="checkbox" checked={selectedTypes.includes(type)} onChange={() => handleTypeChange(type)} className="rounded text-[#00BCD4] focus:ring-[#00BCD4]" />
                         {type}
                       </label>
                     ))}
                   </div>
                 </div>
 
-                {/* Lọc theo địa điểm */}
                 <div>
                   <label className="block text-sm mb-2 font-medium">Địa điểm</label>
-                  <select
-                    className="w-full p-2 border rounded-md text-sm"
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                  >
-                    <option>Tất cả tỉnh thành</option>
-                    <option>Cà Mau</option>
-                    <option>An Giang</option>
-                    <option>Bạc Liêu</option>
-                    <option>Kiên Giang</option>
+                  <select className="w-full p-2 border rounded-md text-sm" value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)}>
+                    {locations.map(location => <option key={location} value={location}>{location}</option>)}
                   </select>
                 </div>
 
-                {/* Lọc theo sản lượng */}
                 <div>
-                  <label className="block text-sm mb-2 font-medium">Sản lượng tối thiểu (tấn)</label>
-                  <input
-                    type="number"
-                    // 1. Thêm thuộc tính min để chặn nút bấm tăng giảm xuống dưới 0
-                    min="0"
-                    placeholder="Nhập số tấn"
-                    className="w-full p-2 border rounded-md text-sm"
-                    value={minQuantity}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      // 2. Logic chặn: Nếu giá trị nhỏ hơn 0 thì đưa về 0 hoặc chuỗi rỗng
-                      if (val < 0) {
-                        setMinQuantity(0);
-                      } else {
-                        setMinQuantity(val);
-                      }
-                    }}
-                    // 3. Chặn phím '-' trực tiếp từ bàn phím
-                    onKeyDown={(e) => {
-                      if (e.key === '-') {
-                        e.preventDefault();
-                      }
-                    }}
-                    style={{ borderColor: '#e5e7eb' }}
-                  />
+                  <label className="block text-sm mb-2 font-medium">Sản lượng tối thiểu</label>
+                  <input type="number" min="0" placeholder="Nhập số lượng" className="w-full p-2 border rounded-md text-sm" value={minQuantity} onChange={(e) => setMinQuantity(Number(e.target.value) < 0 ? 0 : e.target.value)} onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }} style={{ borderColor: '#e5e7eb' }} />
                 </div>
 
-                <button
-                  onClick={() => { setSelectedTypes([]); setSelectedLocation('Tất cả tỉnh thành'); setMinQuantity(''); }}
-                  className="w-full py-2 rounded-md text-sm border hover:bg-gray-50 transition-colors"
-                  style={{ color: '#0A2647', borderColor: '#0A2647' }}
-                >
+                <button onClick={() => { setSelectedTypes([]); setSelectedLocation('Tất cả tỉnh thành'); setMinQuantity(''); }} className="w-full py-2 rounded-md text-sm border hover:bg-gray-50 transition-colors" style={{ color: '#0A2647', borderColor: '#0A2647' }}>
                   Xóa tất cả bộ lọc
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Main Content */}
           <div className="flex-1">
             <div className="flex items-center justify-between mb-6">
-              <p className="text-sm text-gray-600">
-                Tìm thấy <span className="font-medium text-[#00BCD4]">{filteredData.length}</span> sản lượng
-              </p>
-              {/* Nút lọc cho mobile và Sort giữ nguyên */}
+              <p className="text-sm text-gray-600">{loading ? 'Đang tải...' : <>Tìm thấy <span className="font-medium text-[#00BCD4]">{filteredData.length}</span> sản lượng</>}</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredData.length > 0 ? (
-                filteredData.map((supply) => (
-                  <SupplyCard key={supply.id} {...supply} />
-                ))
-              ) : (
-                <div className="col-span-full text-center py-20 bg-white rounded-lg border-2 border-dashed">
-                  <p className="text-gray-400">Không tìm thấy sản lượng phù hợp với bộ lọc.</p>
-                </div>
+              {filteredData.length > 0 ? filteredData.map((supply) => <SupplyCard key={supply.id} {...supply} onClick={() => onNavigate?.('supply')} />) : (
+                <div className="col-span-full text-center py-20 bg-white rounded-lg border-2 border-dashed"><p className="text-gray-400">Không tìm thấy sản lượng phù hợp với bộ lọc.</p></div>
               )}
             </div>
           </div>

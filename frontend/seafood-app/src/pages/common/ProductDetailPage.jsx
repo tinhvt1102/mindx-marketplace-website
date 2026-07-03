@@ -17,10 +17,10 @@ export function ProductDetailPage({ productId, allProducts = [], onNavigate, onA
     if (!productId || allProducts.length === 0) return allProducts[0] || null;
     
     return allProducts.find((item) => {
-      // Ép kiểu về chuỗi, loại bỏ các ký tự trống hoặc tiền tố để so sánh chính xác nhất
-      const cleanItemId = String(item.id).trim();
       const cleanTargetId = String(productId).trim();
-      return cleanItemId === cleanTargetId;
+      return [item.id, item._id, item.legacyId, item.productCode]
+        .filter(Boolean)
+        .some((value) => String(value).trim() === cleanTargetId);
     }) || allProducts[0];
   }, [productId, allProducts]);
 
@@ -57,14 +57,14 @@ export function ProductDetailPage({ productId, allProducts = [], onNavigate, onA
   // 4. LỌC SẢN PHẨM TƯƠNG TỰ: Lọc từ kho dữ liệu thật, bỏ qua sản phẩm hiện tại
   const similarProducts = useMemo(() => {
     return allProducts
-      .filter((item) => String(item.id) !== String(product.id))
+      .filter((item) => String(item.id || item._id) !== String(product.id || product._id))
       .slice(0, 4)
       .map((item) => ({
         id: item.id,
         name: item.name,
         image: item.image,
         hoverimage: item.hoverimage,
-        price: item.price, // Giữ nguyên định dạng chuỗi "450.000đ/kg" gốc
+        price: typeof item.price === 'number' ? `${item.price.toLocaleString('vi-VN')}đ/${item.unit || 'kg'}` : item.price,
         origin: item.origin,
         rating: item.rating || 5,
         reviews: item.reviews || 30
@@ -138,7 +138,7 @@ export function ProductDetailPage({ productId, allProducts = [], onNavigate, onA
               <div className="bg-gray-50 p-4 rounded-lg mb-6">
                 <div className="flex items-baseline gap-3 mb-2">
                   <span className="text-3xl font-bold" style={{ color: '#d4183d' }}>
-                    {product.price.includes('/kg') ? product.price : `${product.price}/kg`}
+                    {typeof product.price === 'number' ? `${product.price.toLocaleString('vi-VN')}đ/${product.unit || 'kg'}` : (String(product.price).includes('/kg') ? product.price : `${product.price}/${product.unit || 'kg'}`)}
                   </span>
                   {product.originalPrice && (
                     <span className="text-lg text-gray-400 line-through">{product.originalPrice}</span>

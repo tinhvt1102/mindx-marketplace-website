@@ -1,6 +1,3 @@
-/**
- * Centralized API endpoints for the seafood application
- */
 export const ENDPOINTS = {
   AUTH: {
     LOGIN: '/Auth/login',
@@ -13,11 +10,19 @@ export const ENDPOINTS = {
   },
   PRODUCTS: {
     RETAIL_LIST: '/products/retail',
-    B2B_LIST: '/products/b2b',
     DETAIL: (id) => `/products/${id}`,
     CREATE: '/products',
+    MY_PRODUCTS: '/products/my-products',
     UPDATE: (id) => `/products/${id}`,
     DELETE: (id) => `/products/${id}`,
+  },
+  SUPPLIES: {
+    LIST: '/supplies',
+    DETAIL: (id) => `/supplies/${id}`,
+    CREATE: '/supplies',
+    MY_SUPPLIES: '/supplies/my-supplies',
+    UPDATE: (id) => `/supplies/${id}`,
+    DELETE: (id) => `/supplies/${id}`,
   },
   SUPPLIERS: {
     LIST: '/suppliers',
@@ -38,5 +43,9 @@ export const ENDPOINTS = {
     UPDATE: (itemId) => `/cart/items/${itemId}`,
     REMOVE: (itemId) => `/cart/items/${itemId}`,
     CLEAR: '/cart/clear',
-  }
+  },
+  DASHBOARD: {
+    SELLER: '/dashboard/seller',
+    ADMIN: '/dashboard/admin',
+  },
 };
